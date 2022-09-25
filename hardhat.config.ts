@@ -374,9 +374,14 @@ const config: HardhatUserConfig = {
         settings: {
           optimizer: {
             enabled: true,
-            runs: 200,
+            runs: 800,
           },
-          evmVersion: 'istanbul',
+          metadata: {
+            // do not include the metadata hash, since this is machine dependent
+            // and we want all generated code to be deterministic
+            // https://docs.soliditylang.org/en/v0.7.6/metadata.html
+            bytecodeHash: 'none',
+          },
         },
       },
       // {
@@ -406,7 +411,20 @@ const config: HardhatUserConfig = {
           evmVersion: 'istanbul',
           optimizer: {
             enabled: true,
-            runs: 1_000_000,
+            runs: 800,
+          },
+          metadata: {
+            bytecodeHash: 'none',
+          },
+        },
+      },
+      "contracts/external-protocols/compound/Comptroller.sol": {
+        version: "0.8.17",
+        settings: {
+          evmVersion: 'london',
+          optimizer: {
+            enabled: true,
+            runs: 1000,
           },
           metadata: {
             bytecodeHash: 'none',

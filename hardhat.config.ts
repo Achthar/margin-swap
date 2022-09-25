@@ -364,7 +364,7 @@ const config: HardhatUserConfig = {
         settings: {
           optimizer: {
             enabled: true,
-            runs: 999999,
+            runs: 1_000_000,
           },
           evmVersion: 'london',
         },
@@ -384,40 +384,8 @@ const config: HardhatUserConfig = {
           },
         },
       },
-      // {
-      //   version: '0.7.0',
-      //   settings: {
-      //     optimizer: {
-      //       enabled: true,
-      //       runs: 200,
-      //     },
-      //     evmVersion: 'istanbul',
-      //   },
-      // },
-      // {
-      //   version: '0.6.12',
-      //   settings: {
-      //     optimizer: {
-      //       enabled: true,
-      //       runs: 200,
-      //     },
-      //   },
-      // }
     ],
     overrides: {
-      "contracts/external-protocols/uniswapV3/": {
-        version: "0.7.6",
-        settings: {
-          evmVersion: 'istanbul',
-          optimizer: {
-            enabled: true,
-            runs: 800,
-          },
-          metadata: {
-            bytecodeHash: 'none',
-          },
-        },
-      },
       "contracts/external-protocols/compound/Comptroller.sol": {
         version: "0.8.17",
         settings: {
@@ -425,6 +393,58 @@ const config: HardhatUserConfig = {
           optimizer: {
             enabled: true,
             runs: 1000,
+          },
+          metadata: {
+            bytecodeHash: 'none',
+          },
+        },
+      },
+      "contracts/external-protocols/compound/ComptrollerG7.sol": {
+        version: "0.8.17",
+        settings: {
+          evmVersion: 'london',
+          optimizer: {
+            enabled: true,
+            runs: 1000,
+          },
+          metadata: {
+            bytecodeHash: 'none',
+          },
+        },
+      },
+      "contracts/external-protocols/compound/test/ComptrollerHarness.sol": {
+        version: "0.8.17",
+        settings: {
+          evmVersion: 'london',
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+          metadata: {
+            bytecodeHash: 'none',
+          },
+        },
+      },
+      "contracts/external-protocols/compound/test/ComptrollerScenario.sol": {
+        version: "0.8.17",
+        settings: {
+          evmVersion: 'london',
+          optimizer: {
+            enabled: true,
+            runs: 600,
+          },
+          metadata: {
+            bytecodeHash: 'none',
+          },
+        },
+      },
+      "contracts/external-protocols/compound/test/CErc20Harness.sol": {
+        version: "0.8.17",
+        settings: {
+          evmVersion: 'london',
+          optimizer: {
+            enabled: true,
+            runs: 10000,
           },
           metadata: {
             bytecodeHash: 'none',

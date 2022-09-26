@@ -2,14 +2,19 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber } from "ethers";
 import { ethers } from "hardhat"
 import { 
+    BoolComptroller,
+    BoolComptroller__factory,
     CDaiDelegateHarness,
     CDaiDelegateHarness__factory,
     CDaiDelegateMakerHarness,
     CDaiDelegateMakerHarness__factory,
     CErc20DelegateHarness__factory,
     CErc20Delegator__factory,
+    CErc20Harness,
+    CEther,
     CEtherHarness__factory,
      Comp,
+     Comptroller,
      ComptrollerHarness, 
      ComptrollerHarness__factory, 
      Comp__factory, 
@@ -31,10 +36,11 @@ import {
      WhitePaperInterestRateModel__factory
     } 
     from "../../../types"
-
-const ONE_18 = ethers.BigNumber.from(10).pow(18)
-const ZERO = ethers.BigNumber.from(0)
-const ONE = ethers.BigNumber.from(1)
+import ComptrollerHarnessArtifact from "../../../artifacts/contracts/external-protocols/compound/test/ComptrollerHarness.sol/ComptrollerHarness.json"
+import UnitrollerArtifact from "../../../artifacts/contracts/external-protocols/compound/Unitroller.sol/Unitroller.json"
+export const ONE_18 = ethers.BigNumber.from(10).pow(18)
+export const ZERO = ethers.BigNumber.from(0)
+export const ONE = ethers.BigNumber.from(1)
 
 
 function encodeParameters(types :any, values:any[]) {
@@ -48,10 +54,10 @@ export function etherMantissa(num:number| BigNumber, scale: number| BigNumber = 
     return ethers. BigNumber.from(num).mul(scale);
   }
 
-  interface ComptrollerFixture {
+ export interface ComptrollerFixture {
     unitroller:Unitroller
-    comptroller:ComptrollerHarness
-    comptrollerLogic: ComptrollerHarness
+    comptroller:ComptrollerHarness | BoolComptroller
+    comptrollerLogic: ComptrollerHarness | BoolComptroller
     oracle:SimplePriceOracle
     // token1: TestERC20
     // token2: TestERC20
@@ -62,30 +68,60 @@ export function etherMantissa(num:number| BigNumber, scale: number| BigNumber = 
   }
   
 
-interface ComptrollerInterface{
-    compRate:BigNumber
-    closeFactor:BigNumber
+interface ComptrollerOptions{
+    root?:string
+    kind?: string
+    compRate?:BigNumber
+    closeFactor?:BigNumber
 }
 
-async function comptrollerFixture(signer:SignerWithAddress, opts:ComptrollerInterface ={compRate :ONE_18, closeFactor:ONE_18.mul(51).div(1000) }): Promise<ComptrollerFixture> {
+export async function comptrollerFixture(
+    signer:SignerWithAddress,
+     opts:ComptrollerOptions ={compRate :ONE_18, closeFactor: ONE_18.mul(51).div(1000) }
+     ): Promise<ComptrollerFixture> {
+
+        let comptrollerLogic;
+    const {
+        root = signer.address,
+        kind = 'unitroller'
+      } = opts || {};
 
     // deploy unitroller
     const unitroller = await new Unitroller__factory(signer).deploy()
-    
-    // deploy comptroller
-    const comptrollerLogic =await new  ComptrollerHarness__factory(signer).deploy()
+
+    // deploy oracle
+    const priceOracle = await new SimplePriceOracle__factory(signer).deploy();
+
+    let comptroller;
+    if(kind === 'bool'){
+        // deploy comptroller bool type
+        comptrollerLogic =await new  BoolComptroller__factory(signer).deploy()
+        comptroller =( await new ethers.Contract(unitroller.address,comptrollerLogic.interface)) as BoolComptroller
+        // set implementation
+        await unitroller._setPendingImplementation(comptrollerLogic.address)
+        await unitroller._acceptImplementation()
+        // return objects
+        return {
+            comptroller,
+            comptrollerLogic,
+            unitroller,
+            oracle:priceOracle 
+        }
+    }
+    else{
+        // deploy comptroller harness
+        comptrollerLogic =await new  ComptrollerHarness__factory(signer).deploy()
+        comptroller =( await new ethers.Contract(unitroller.address,comptrollerLogic.interface)) as ComptrollerHarness
+    }
 
     // set implementation
     await unitroller._setPendingImplementation(comptrollerLogic.address)
     await unitroller._acceptImplementation()
 
-    const comptroller =( await new ethers.Contract(unitroller.address,comptrollerLogic.interface)) as ComptrollerHarness
-
-    await comptroller._become(unitroller.address)
+    await comptroller.connect(signer)._become(unitroller.address)
 
     const comp = await new Comp__factory(signer).deploy(signer.address)
-    const priceOracle = await new SimplePriceOracle__factory(signer).deploy();
-    const closeFactor = opts?.closeFactor ?? .051;
+    const closeFactor = opts?.closeFactor ??  ONE_18.mul(51).div(1000);
     // const maxAssets = BigNumber.from(10);
     const liquidationIncentive = etherMantissa(1);
     const compRate = opts?.compRate ??  ONE_18;
@@ -93,11 +129,11 @@ async function comptrollerFixture(signer:SignerWithAddress, opts:ComptrollerInte
     // const otherMarkets = opts.otherMarkets || [];
 
     // set parameters
-    await comptroller.setCompAddress(comp.address)
-    await comptroller._setLiquidationIncentive(liquidationIncentive);
-    await comptroller._setCloseFactor(closeFactor);
-    await comptroller.harnessSetCompRate(compRate)
-    await comptroller._setPriceOracle(priceOracle.address);
+    await comptroller.connect(signer).setCompAddress(comp.address)
+    await comptroller.connect(signer)._setLiquidationIncentive(liquidationIncentive);
+    await comptroller.connect(signer)._setCloseFactor(closeFactor);
+    await comptroller.connect(signer).harnessSetCompRate(compRate)
+    await comptroller.connect(signer)._setPriceOracle(priceOracle.address);
 
     return {
         unitroller,
@@ -109,7 +145,7 @@ async function comptrollerFixture(signer:SignerWithAddress, opts:ComptrollerInte
 
 
 
-interface InterestRateModelOptons{
+export interface InterestRateModelOptons{
     kind?:string
     root?:string
     borrowRate?:BigNumber
@@ -154,7 +190,7 @@ interface InterestRateModelOptons{
       
   }
 
-interface TokenOptions{
+export interface TokenOptions{
     kind?:string
     root?:string
     decimals?:number
@@ -178,12 +214,12 @@ interface TokenOptions{
     // }
   }
 
-  interface CTokenOptions
+  export interface CTokenOptions
   {
     kind:string
     root:string
-    comptroller?:ComptrollerHarness
-    comptrollerOpts?:ComptrollerInterface
+    comptroller?:ComptrollerHarness | BoolComptroller
+    comptrollerOpts?:ComptrollerOptions
     interestRateModel?:InterestRateModelHarness | FalseMarkerMethodInterestRateModel | WhitePaperInterestRateModel | JumpRateModel
     interestRateModelOpts?:InterestRateModelOptons
     exchangeRate?:BigNumber
@@ -200,13 +236,13 @@ interface TokenOptions{
       underlyingPrice?:BigNumber
      }
 
-interface CTokenFixture{
+export interface CTokenFixture{
     cToken:CToken
     interestRateModel:InterestRateModelHarness | FalseMarkerMethodInterestRateModel | WhitePaperInterestRateModel | JumpRateModel
-    comptroller:ComptrollerHarness
+    comptroller:ComptrollerHarness | BoolComptroller
     underlying: CDaiDelegateMakerHarness | Comp | ERC20Harness | undefined
 }
-  export async function CTokenFixture(
+  export async function cTokenFixture(
     signer: SignerWithAddress, 
     opts:CTokenOptions = {kind:'cerc20', root:'', supportMarket:false, addCompMarket:false, collateralFactor:ONE_18}
     ):Promise<CTokenFixture> {
@@ -275,7 +311,7 @@ interface CTokenFixture{
             decimals,
             admin,
             cDelegatee.address,
-            "0x0"
+            Buffer.from("0x")
           
         );
         cToken = await new ethers.Contract(cDelegator.address, CErc20DelegateHarness__factory.createInterface()) // saddle.getContractAt('CErc20DelegateHarness', cDelegator.address);
@@ -296,7 +332,7 @@ interface CTokenFixture{
             decimals,
             admin,
             cDelegatee.address,
-            "0x0"
+            Buffer.from("0x")
           
         );
         cToken = await new ethers.Contract(cDelegator.address, CErc20DelegateHarness__factory.createInterface()) //saddle.getContractAt('CErc20DelegateHarness', cDelegator.address);
@@ -305,7 +341,7 @@ interface CTokenFixture{
     }
   
     if (opts.supportMarket) {
-      await comptroller._supportMarket(cToken.address);
+      await (comptroller as ComptrollerHarness)._supportMarket(cToken.address);
     }
   
     if (opts.addCompMarket) {
@@ -315,13 +351,13 @@ interface CTokenFixture{
   
     if (opts?.underlyingPrice) {
       const price = etherMantissa(opts.underlyingPrice);
-      const oracle = await new ethers.Contract(await comptroller.oracle(), PriceOracle__factory.createInterface())
+      const oracle = await new ethers.Contract(await (comptroller as ComptrollerHarness).oracle(), PriceOracle__factory.createInterface())
       await oracle.setUnderlyingPrice(cToken.address, price);
     }
   
     if (opts.collateralFactor) {
       const factor = etherMantissa(opts.collateralFactor);
-      await comptroller._setCollateralFactor(cToken.address, factor)
+      await (comptroller as ComptrollerHarness)._setCollateralFactor(cToken.address, factor)
     //   expect(await send(comptroller, '_setCollateralFactor', [cToken.address, factor])).toSucceed();
     }
   
@@ -333,16 +369,154 @@ interface CTokenFixture{
     } // Object.assign(cToken, { name, symbol, underlying, comptroller, interestRateModel });
   }
 
-//   async function preBorrow(cToken:CToken, borrower:string, borrowAmount:BigNumber) {
-//     await cToken.comptroller, 'setBorrowAllowed', [true]);
-//     await cToken.comptroller, 'setBorrowVerify', [true]);
-//     await cToken.interestRateModel, 'setFailBorrowRate', [false]);
-//     await cToken., 'harnessSetBalance', [cToken.address, borrowAmount]);
-//     await cToken, 'harnessSetFailTransferToAddress', [borrower, false]);
-//     await cToken, 'harnessSetAccountBorrows', [borrower, 0, 0]);
-//     await cToken, 'harnessSetTotalBorrows', [0]);
-//   }
+  async function preBorrow(cToken:CTokenFixture, borrower:string, borrowAmount:BigNumber) {
+    await (cToken.comptroller as BoolComptroller).setBorrowAllowed(true)
+    await (cToken.comptroller as BoolComptroller).setBorrowVerify(true)
+    await (cToken.interestRateModel as InterestRateModelHarness).setFailBorrowRate(true)
+
+    // await cToken.cToken.h(true)
+    // await cToken.comptroller, 'setBorrowAllowed', [true]);
+    // await cToken.comptroller, 'setBorrowVerify', [true]);
+    // await cToken.interestRateModel, 'setFailBorrowRate', [false]);
+    // await cToken., 'harnessSetBalance', [cToken.address, borrowAmount]);
+    // await cToken, 'harnessSetFailTransferToAddress', [borrower, false]);
+    // await cToken, 'harnessSetAccountBorrows', [borrower, 0, 0]);
+    // await cToken, 'harnessSetTotalBorrows', [0]);
+  }
+
+  export interface CompoundFixture{
+    cTokens:CErc20Harness[]
+    cEther:CEther
+    underlyings:ERC20Harness[]
+    comptroller:ComptrollerHarness
+    unitroller:Unitroller
+    interestRateModels:(InterestRateModelHarness | FalseMarkerMethodInterestRateModel | WhitePaperInterestRateModel | JumpRateModel)[]
+    cEthInterestRateModel:InterestRateModelHarness | FalseMarkerMethodInterestRateModel | WhitePaperInterestRateModel | JumpRateModel,
+    priceOracle:SimplePriceOracle
+  }
   
+  export interface CompoundOptions{
+    tokenCount:number
+    collateralFactors:BigNumber[]
+    exchangeRates:BigNumber[]
+    borrowRates:BigNumber[]
+    cEthExchangeRate:BigNumber
+    cEthBorrowRate:BigNumber
+    compRate?:BigNumber
+    closeFactor?:BigNumber
+
+  }
+
+  export async function generateCompoundFixture(signer:SignerWithAddress, options:CompoundOptions):Promise<CompoundFixture> {
+
+    console.log("Unitroller")
+    // deploy unitroller
+    const unitroller = await new Unitroller__factory(signer).deploy()
+
+    // deploy oracle
+    const priceOracle = await new SimplePriceOracle__factory(signer).deploy();
+
+
+
+        // deploy comptroller harness
+      const  comptrollerLogic =await new  ComptrollerHarness__factory(signer).deploy()
+      console.log("Comptroller")
+       const  comptroller =await ethers.getContractAt(
+       [ ...ComptrollerHarnessArtifact.abi, ...UnitrollerArtifact.abi],
+         unitroller.address) as ComptrollerHarness // ( await new ethers.Contract(unitroller.address,comptrollerLogic.interface)) as ComptrollerHarness
+    
+
+    // set implementation
+    await unitroller._setPendingImplementation(comptrollerLogic.address)
+    // await unitroller._acceptImplementation()
+
+    await comptrollerLogic.connect(signer)._become(unitroller.address)
+    console.log("Comp")
+    const comp = await new Comp__factory(signer).deploy(signer.address)
+    const closeFactor = options?.closeFactor ??  ONE_18.mul(51).div(1000);
+    // const maxAssets = BigNumber.from(10);
+    const liquidationIncentive = etherMantissa(1);
+    const compRate = options?.compRate ??  ONE_18;
+    // const compMarkets = options.compMarkets || [];
+    // const otherMarkets = options.otherMarkets || [];
+
+    // set parameters
+    await comptroller.connect(signer).setCompAddress(comp.address)
+    await comptroller.connect(signer)._setLiquidationIncentive(liquidationIncentive);
+    await comptroller.connect(signer)._setCloseFactor(closeFactor);
+    await comptroller.connect(signer).harnessSetCompRate(compRate)
+    await comptroller.connect(signer)._setPriceOracle(priceOracle.address);
+
+    const interestRateModelCETH= await new InterestRateModelHarness__factory(signer).deploy(options.cEthBorrowRate)
+
+    console.log("CETH Args",     comptroller.address,
+    interestRateModelCETH.address,
+    options.cEthExchangeRate,
+    'cEther',
+    'CETH',
+    18,
+    signer.address
+    )
+
+    const c = await comptroller.connect(signer).isComptroller()
+    console.log("C",c)
+    const cEther =  await new CEtherHarness__factory(signer).deploy(
+        comptroller.address,
+        interestRateModelCETH.address,
+        options.cEthExchangeRate,
+        'cEther',
+        'CETH',
+        18,
+        signer.address
+      )
+      console.log("CETH")
+      let underlyings:ERC20Harness[]=[], cTokens:CErc20Harness[]=[], interestRateModels:InterestRateModelHarness[]=[];
+      for(let i=0; i <options.collateralFactors.length; i++){
+        const interestRateModel= await new InterestRateModelHarness__factory(signer).deploy(options.borrowRates[i])
+        const quantity = ONE_18.mul(1000000);
+        const decimals =  18;
+        const symbol = 'OMG' + i;
+        const name = `Erc20 ${i}`;
+        const underlying  = await new ERC20Harness__factory(signer).deploy(quantity, name, decimals, symbol) 
+
+       const  cDelegatee = await new CErc20DelegateHarness__factory(signer).deploy() //  deploy('CErc20DelegateHarness');
+        const cDelegator = await new CErc20Delegator__factory(signer).deploy( //deploy('CErc20Delegator',
+            underlying.address,
+            comptroller.address,
+            interestRateModel.address,
+            options.exchangeRates[i],
+            name,
+            symbol,
+            decimals,
+            signer.address,
+            cDelegatee.address,
+            Buffer.from("0x")
+        );
+        const cToken = (await new ethers.Contract(cDelegator.address, CErc20DelegateHarness__factory.createInterface()) ) as CErc20Harness
+        cTokens.push(cToken)
+        underlyings.push(underlying)
+        interestRateModels.push(interestRateModel)
+
+        // await comptroller.harnessAddCompMarkets([cToken.address]);
+
+      const price = etherMantissa(options.exchangeRates[i]);
+    //   const oracle = await new ethers.Contract(await (comptroller as ComptrollerHarness).oracle(), PriceOracle__factory.createInterface())
+      await priceOracle.setUnderlyingPrice(cToken.address, price);
+      console.log("Support", cToken.address)
+      await comptroller._supportMarket(cToken.address)
+      }
+
+      return{
+        cEther,
+        cTokens,
+        comptroller,
+        unitroller,
+        underlyings,
+        interestRateModels,
+        cEthInterestRateModel:interestRateModelCETH,
+        priceOracle
+      }
+  }
   
 //   interface TokensFixture {
 //     token0: TestERC20

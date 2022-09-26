@@ -473,7 +473,7 @@ const config: HardhatUserConfig = {
     },
   },
   contractSizer: {
-    runOnCompile: true,
+    runOnCompile: false,
     disambiguatePaths: false,
   },
 };

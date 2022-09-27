@@ -1,43 +1,45 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { BigNumber } from "ethers";
 import { ethers } from "hardhat"
-import { 
-    BoolComptroller,
-    BoolComptroller__factory,
-    CDaiDelegateHarness,
-    CDaiDelegateHarness__factory,
-    CDaiDelegateMakerHarness,
-    CDaiDelegateMakerHarness__factory,
-    CErc20DelegateHarness__factory,
-    CErc20Delegator__factory,
-    CErc20Harness,
-    CEther,
-    CEtherHarness__factory,
-     Comp,
-     Comptroller,
-     ComptrollerHarness, 
-     ComptrollerHarness__factory, 
-     Comp__factory, 
-     CToken, 
-     ERC20Harness, 
-     ERC20Harness__factory, 
-     FalseMarkerMethodInterestRateModel, 
-     FalseMarkerMethodInterestRateModel__factory, 
-     InterestRateModelHarness, 
-     InterestRateModelHarness__factory, 
-     JumpRateModel, 
-     JumpRateModel__factory, 
-     PriceOracle__factory, 
-     SimplePriceOracle, 
-     SimplePriceOracle__factory, 
-     Unitroller, 
-     Unitroller__factory, 
-     WhitePaperInterestRateModel, 
-     WhitePaperInterestRateModel__factory
-    } 
-    from "../../../types"
+import {
+  BoolComptroller,
+  BoolComptroller__factory,
+  CDaiDelegateHarness,
+  CDaiDelegateHarness__factory,
+  CDaiDelegateMakerHarness,
+  CDaiDelegateMakerHarness__factory,
+  CErc20DelegateHarness__factory,
+  CErc20Delegator__factory,
+  CErc20Harness,
+  CErc20Harness__factory,
+  CEther,
+  CEtherHarness__factory,
+  Comp,
+  Comptroller,
+  ComptrollerHarness, 
+  ComptrollerHarness__factory, 
+  Comp__factory, 
+  CToken, 
+  ERC20Harness, 
+  ERC20Harness__factory, 
+  FalseMarkerMethodInterestRateModel, 
+  FalseMarkerMethodInterestRateModel__factory, 
+  InterestRateModelHarness, 
+  InterestRateModelHarness__factory, 
+  JumpRateModel, 
+  JumpRateModel__factory, 
+  PriceOracle__factory, 
+  SimplePriceOracle, 
+  SimplePriceOracle__factory, 
+  Unitroller, 
+  Unitroller__factory, 
+  WhitePaperInterestRateModel, 
+  WhitePaperInterestRateModel__factory
+    }
+from "../../../types"
 import ComptrollerHarnessArtifact from "../../../artifacts/contracts/external-protocols/compound/test/ComptrollerHarness.sol/ComptrollerHarness.json"
 import UnitrollerArtifact from "../../../artifacts/contracts/external-protocols/compound/Unitroller.sol/Unitroller.json"
+
 export const ONE_18 = ethers.BigNumber.from(10).pow(18)
 export const ZERO = ethers.BigNumber.from(0)
 export const ONE = ethers.BigNumber.from(1)
@@ -478,9 +480,7 @@ export interface CTokenFixture{
         const symbol = 'OMG' + i;
         const name = `Erc20 ${i}`;
         const underlying  = await new ERC20Harness__factory(signer).deploy(quantity, name, decimals, symbol) 
-
-       const  cDelegatee = await new CErc20DelegateHarness__factory(signer).deploy() //  deploy('CErc20DelegateHarness');
-        const cDelegator = await new CErc20Delegator__factory(signer).deploy( //deploy('CErc20Delegator',
+        const cerc20Token = await new CErc20Harness__factory(signer).deploy(
             underlying.address,
             comptroller.address,
             interestRateModel.address,
@@ -488,11 +488,9 @@ export interface CTokenFixture{
             name,
             symbol,
             decimals,
-            signer.address,
-            cDelegatee.address,
-            Buffer.from("0x")
+            signer.address
         );
-        const cToken = (await new ethers.Contract(cDelegator.address, CErc20DelegateHarness__factory.createInterface()) ) as CErc20Harness
+        const cToken = cerc20Token
         cTokens.push(cToken)
         underlyings.push(underlying)
         interestRateModels.push(interestRateModel)
@@ -504,6 +502,8 @@ export interface CTokenFixture{
       await priceOracle.setUnderlyingPrice(cToken.address, price);
       console.log("Support", cToken.address)
       await comptroller._supportMarket(cToken.address)
+      await comptroller.harnessAddCompMarkets([cToken.address]);
+      await comptroller._setCollateralFactor(cToken.address, options.collateralFactors[i])
       }
 
       return{

@@ -2,9 +2,8 @@
 
 pragma solidity ^0.8.0;
 
-interface IMarginAccount {
+interface IMarginAccountInitializer {
     function initialize(
-        address _logic,
-        address _owner
+        // address _dataProvider
     ) external payable;
 }

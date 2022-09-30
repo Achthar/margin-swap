@@ -4,13 +4,17 @@ pragma solidity ^0.8.17;
 
 import "./AccountStorage.sol";
 import {CErc20Interface} from "../external-protocols/compound/CTokenInterfaces.sol";
+import "../interfaces/margin-account/IMarginAccountInitializer.sol";
 
 /**
- * @title BasePanel contract
- * @notice Allows interaction of account contract with cTokens as defined by the Compound protocol 
+ * @title MoneyMarketOperator contract
+ * @notice Allows interaction of account contract with cTokens as defined by the Compound protocol
  * @author Achthar
  */
-abstract contract BasePanel is AccountDataFetcher {
+contract MoneyMarketOperator is AccountDataFetcher, IMarginAccountInitializer {
+    function initialize() external payable override {
+        // storageInit(_dataProvider);
+    }
 
     function mint(
         address _underlying,

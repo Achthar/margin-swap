@@ -20,19 +20,14 @@ contract MarginAccountProxy is MarginAccountProxyStorage {
     /**
      * @dev Initializes an upgradeable proxy managed by `_owner`, backed by the implementation provided by `_logicReference`.
      */
-    function _initialize(address _logicReference, address _owner) external payable {
+    function _initialize(
+        address _logicReference,
+        address _dataProvider,
+        address _owner
+    ) external payable {
         require(msg.sender == _getFactory(), "MarginAccount: FORBIDDEN"); // sufficient check
-        __MarginAccountFetcherInit(_logicReference, _owner);
-        assert(_OWNER_SLOT == bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1));
+        __MarginAccountFetcherInit(_logicReference, _dataProvider, _owner);
         _changeOwnerInternal(_owner);
-    }
-
-    /**
-     * @dev Modifier used internally that will allow only the owner to execute functions.
-     */
-    modifier _onlyOwner() {
-        require(msg.sender == _getOwner());
-        _;
     }
 
     function _implementation() external view returns (address) {
@@ -46,7 +41,8 @@ contract MarginAccountProxy is MarginAccountProxyStorage {
      *
      * NOTE: Only the owner can call this function. See {ProxyOwner-changeProxyOwner}.
      */
-    function _changeOwner(address newOwner) external virtual _onlyOwner {
+    function _changeOwner(address newOwner) external virtual {
+        require(msg.sender == _getOwner(), "only the owner can interact");
         _changeOwnerInternal(newOwner);
     }
 
@@ -85,7 +81,7 @@ contract MarginAccountProxy is MarginAccountProxyStorage {
      *
      * This function does not return to its internal call site, it will return directly to the external caller.
      */
-    function _fallback() _onlyOwner internal virtual {
+    function _fallback() internal virtual {
         _delegate(_getImplementation());
     }
 

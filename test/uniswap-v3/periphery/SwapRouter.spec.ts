@@ -32,7 +32,6 @@ describe('SwapRouter', function () {
       await token.connect(trader).approve(router.address, constants.MaxUint256)
       await token.transfer(trader.address, expandTo18Decimals(1_000_000))
     }
-    console.log("tst")
 
     return {
       weth9,

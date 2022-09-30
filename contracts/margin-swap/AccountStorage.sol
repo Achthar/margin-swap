@@ -11,15 +11,24 @@ import {MarginAccountProxyStorageBase} from "../proxy/transparent/MarginAccountP
  * the accounts with valid cToken and underlying info and valid protocols to interact with
  */
 abstract contract AccountStorage is MarginAccountProxyStorageBase {
-    // address of contract that provides data about tokens, protocols and pool
-    address dataProvider;
+    mapping(address => bool) public allowedPools;
+    mapping(address => bool) public managers;
 }
 
-abstract contract AccountDataFetcher is AccountStorage {
-    function storageInit(address _dataProvider) internal {
-        dataProvider = _dataProvider;
+abstract contract OwnedAccount is AccountStorage {
+    modifier onlyOwner() {
+        require(msg.sender == accountOwner, "only the account owner can interact");
+        _;
     }
+}
 
+abstract contract PoolPermitter is OwnedAccount {
+    function allowPool(address _pool) public onlyOwner {
+        allowedPools[_pool] = true;
+    }
+}
+
+abstract contract AccountDataFetcher is PoolPermitter {
     function getCToken(address _underlying, uint256 _protocolId) internal returns (CErc20Interface) {
         return IMoneyMarketDataProvider(dataProvider).cToken(_underlying, _protocolId);
     }

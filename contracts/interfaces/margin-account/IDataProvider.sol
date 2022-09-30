@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {CErc20Interface} from "../../external-protocols/compound/CTokenInterfaces.sol";
+import {CErc20Interface, ComptrollerInterface} from "../../external-protocols/compound/CTokenInterfaces.sol";
 
 interface IDataProvider {
     function cToken(address _underlying, uint256 _protocolId) external returns (CErc20Interface);
@@ -40,4 +40,6 @@ interface IDataProvider {
         address _underlyingOut,
         uint256 _protocolId
     ) external returns (CErc20Interface, CErc20Interface);
+
+    function getComptroller(uint256 protocolId) external returns (ComptrollerInterface);
 }

@@ -10,6 +10,7 @@ contract MoneyMarketDataProvider is IMoneyMarketDataProvider {
     mapping(address => mapping(uint256 => address)) private _cTokens;
     mapping(address => address) private _underlyings;
     mapping(address => bool) cTokenIsValid;
+    mapping(uint256 => address) private _comptrollers;
 
     modifier onlyDataAdmin() {
         require(msg.sender == dataAdmin, "Only dataAdmin can interact");
@@ -39,5 +40,13 @@ contract MoneyMarketDataProvider is IMoneyMarketDataProvider {
     function underlying(address _cToken) external view returns (address) {
         require(cTokenIsValid[_cToken], "invalid cToken");
         return _underlyings[_cToken];
+    }
+
+    function addComptroller(uint256 _protocolId, address _comptroller) external onlyDataAdmin {
+        _comptrollers[_protocolId] = _comptroller;
+    }
+
+    function getComptroller(uint256 _protocolId) external view returns (ComptrollerInterface) {
+        return ComptrollerInterface(_comptrollers[_protocolId]);
     }
 }

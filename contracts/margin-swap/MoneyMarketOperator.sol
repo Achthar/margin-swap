@@ -5,6 +5,10 @@ pragma solidity ^0.8.17;
 import "./AccountStorage.sol";
 import {CErc20Interface} from "../external-protocols/compound/CTokenInterfaces.sol";
 import "../interfaces/margin-account/IMarginAccountInitializer.sol";
+import "./libraries/TransferHelper.sol";
+import "../interfaces/margin-account/IDataProvider.sol";
+
+// solhint-disable max-line-length
 
 /**
  * @title MoneyMarketOperator contract
@@ -16,11 +20,23 @@ contract MoneyMarketOperator is AccountDataFetcher, IMarginAccountInitializer {
         // storageInit(_dataProvider);
     }
 
+    function approveUnderlyings(address[] memory _underlyings, uint256 _protocolId) public onlyOwner {
+        for (uint256 i = 0; i < _underlyings.length; i++) {
+            address _underlying = _underlyings[i];
+            TransferHelper.safeApprove(_underlying, address(IDataProvider(dataProvider).cToken(_underlying, _protocolId)), type(uint256).max);
+        }
+    }
+
+    function enterMarkets(uint256 _protocolId, address[] memory cTokens) external onlyOwner {
+        IDataProvider(dataProvider).getComptroller(_protocolId).enterMarkets(cTokens);
+    }
+
     function mint(
         address _underlying,
         uint256 _protocolId,
         uint256 _amountToSupply
-    ) external payable returns (uint256) {
+    ) external payable onlyOwner returns (uint256) {
+        TransferHelper.safeTransferFrom(_underlying, msg.sender, address(this), _amountToSupply);
         CErc20Interface cToken = getCToken(_underlying, _protocolId);
         return cToken.mint(_amountToSupply);
     }
@@ -29,8 +45,9 @@ contract MoneyMarketOperator is AccountDataFetcher, IMarginAccountInitializer {
         address _underlying,
         uint256 _protocolId,
         uint256 _cAmountToRedeem
-    ) external payable returns (uint256) {
+    ) external payable onlyOwner returns (uint256) {
         CErc20Interface cToken = getCToken(_underlying, _protocolId);
+        TransferHelper.safeTransferFrom(address(cToken), msg.sender, address(this), _cAmountToRedeem);
         return cToken.redeem(_cAmountToRedeem);
     }
 
@@ -38,7 +55,8 @@ contract MoneyMarketOperator is AccountDataFetcher, IMarginAccountInitializer {
         address _underlying,
         uint256 _protocolId,
         uint256 _amountToRedeem
-    ) external payable returns (uint256) {
+    ) external payable onlyOwner returns (uint256) {
+        TransferHelper.safeTransferFrom(_underlying, msg.sender, address(this), _amountToRedeem);
         CErc20Interface cToken = getCToken(_underlying, _protocolId);
         return cToken.redeemUnderlying(_amountToRedeem);
     }
@@ -47,7 +65,7 @@ contract MoneyMarketOperator is AccountDataFetcher, IMarginAccountInitializer {
         address _underlying,
         uint256 _protocolId,
         uint256 _borrowAmount
-    ) external returns (uint256) {
+    ) external onlyOwner returns (uint256) {
         CErc20Interface cToken = getCToken(_underlying, _protocolId);
         return cToken.borrow(_borrowAmount);
     }
@@ -56,7 +74,8 @@ contract MoneyMarketOperator is AccountDataFetcher, IMarginAccountInitializer {
         address _underlying,
         uint256 _protocolId,
         uint256 _repayAmount
-    ) external returns (uint256) {
+    ) external onlyOwner returns (uint256) {
+        TransferHelper.safeTransferFrom(_underlying, msg.sender, address(this), _repayAmount);
         CErc20Interface cToken = getCToken(_underlying, _protocolId);
         return cToken.borrow(_repayAmount);
     }

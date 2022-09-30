@@ -4,13 +4,11 @@ pragma solidity ^0.8.17;
 
 import "./MoneyMarketOperator.sol";
 import {IMarginTrader} from "../interfaces/margin-swap/IMarginTrader.sol";
-import {IDataProvider} from "../interfaces/margin-account/IDataProvider.sol";
 import "../external-protocols/uniswapV3/core/interfaces/IUniswapV3Pool.sol";
 import "../external-protocols/uniswapV3/periphery/interfaces/ISwapRouter.sol";
 import "./libraries/Path.sol";
 import "./libraries/SafeCast.sol";
 import "./libraries/TickMathConstants.sol";
-import "./libraries/TransferHelper.sol";
 
 // solhint-disable max-line-length
 

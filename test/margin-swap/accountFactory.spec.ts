@@ -20,8 +20,6 @@ describe('Account Factory', async () => {
         proxyDeployer = await new ProxyDeployer__factory(deployer).deploy()
         logic = await new MoneyMarketOperator__factory(deployer).deploy()
         logicProvider = await new ImplementationProvider__factory(deployer).deploy(logic.address)
-        const x = await logicProvider.getImplementation()
-        console.log("DD", x)
         dataProvider = await new MoneyMarketDataProvider__factory(deployer).deploy()
         await proxyDeployer.initialize(logicProvider.address, dataProvider.address)
     })

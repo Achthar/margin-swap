@@ -23,7 +23,9 @@ contract MoneyMarketOperator is AccountDataFetcher, IMarginAccountInitializer {
     function approveUnderlyings(address[] memory _underlyings, uint256 _protocolId) public onlyOwner {
         for (uint256 i = 0; i < _underlyings.length; i++) {
             address _underlying = _underlyings[i];
-            TransferHelper.safeApprove(_underlying, address(IDataProvider(dataProvider).cToken(_underlying, _protocolId)), type(uint256).max);
+            address _cToken = address(IDataProvider(dataProvider).cToken(_underlying, _protocolId));
+            TransferHelper.safeApprove(_underlying, _cToken, type(uint256).max);
+            TransferHelper.safeApprove(_cToken, _cToken, type(uint256).max);
         }
     }
 
@@ -77,6 +79,6 @@ contract MoneyMarketOperator is AccountDataFetcher, IMarginAccountInitializer {
     ) external onlyOwner returns (uint256) {
         TransferHelper.safeTransferFrom(_underlying, msg.sender, address(this), _repayAmount);
         CErc20Interface cToken = getCToken(_underlying, _protocolId);
-        return cToken.borrow(_repayAmount);
+        return cToken.repayBorrow(_repayAmount);
     }
 }

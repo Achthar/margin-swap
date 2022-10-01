@@ -1,8 +1,8 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { constants } from 'ethers';
+import { BigNumber, constants } from 'ethers';
 import { ethers, network } from 'hardhat'
 import { connect } from 'http2';
-import { MoneyMarketOperator__factory, ImplementationProvider, ImplementationProvider__factory, MoneyMarketOperator, ProxyDeployer, ProxyDeployer__factory, MoneyMarketDataProvider, MoneyMarketDataProvider__factory, MarginAccountProxy__factory } from '../../types';
+import { MoneyMarketOperator__factory, ImplementationProvider, ImplementationProvider__factory, MoneyMarketOperator, ProxyDeployer, ProxyDeployer__factory, MoneyMarketDataProvider, MoneyMarketDataProvider__factory, MarginAccountProxy__factory, ERC20Mock } from '../../types';
 import { FeeAmount, TICK_SPACINGS } from '../uniswap-v3/periphery/shared/constants';
 import { encodePriceSqrt } from '../uniswap-v3/periphery/shared/encodePriceSqrt';
 import { expandTo18Decimals } from '../uniswap-v3/periphery/shared/expandTo18Decimals';
@@ -91,6 +91,55 @@ describe('Money Market operations', async () => {
         }
     }
 
+    async function supplyToCompound(
+        signer: SignerWithAddress,
+        account: MoneyMarketOperator,
+        index: number,
+        amount: BigNumber
+    ) {
+        const supply_underlying = uniswap.tokens[index]
+        const supply_cToken = compound.cTokens[index]
+
+        await supply_underlying.connect(signer).approve(account.address, constants.MaxUint256)
+        await account.connect(signer).mint(supply_underlying.address, protocolId, amount)
+    }
+
+    async function redeemUnderlyingFromCompound(
+        signer: SignerWithAddress,
+        account: MoneyMarketOperator,
+        index: number,
+        amount: BigNumber
+    ) {
+        const supply_underlying = uniswap.tokens[index]
+        await supply_underlying.connect(signer).approve(account.address, constants.MaxUint256)
+        await account.connect(signer).redeemUnderlying(supply_underlying.address, protocolId, amount)
+    }
+
+
+
+    async function borrowFromCompound(
+        signer: SignerWithAddress,
+        account: MoneyMarketOperator,
+        index: number,
+        amount: BigNumber
+    ) {
+        const borrow_underlying = uniswap.tokens[index]
+        await account.connect(signer).borrow(borrow_underlying.address, protocolId, amount)
+    }
+
+    async function repayBorrowToCompound(
+        signer: SignerWithAddress,
+        account: MoneyMarketOperator,
+        index: number,
+        amount: BigNumber
+    ) {
+        const borrow_underlying = uniswap.tokens[index]
+        await borrow_underlying.connect(signer).approve(accountAlice.address, constants.MaxUint256)
+        await account.connect(signer).approveUnderlyings([borrow_underlying.address], protocolId)
+        await account.connect(signer).repayBorrow(borrow_underlying.address, protocolId, amount)
+    }
+
+
 
     beforeEach('Deploy Account, Trader, Uniswap and Compound', async () => {
         [deployer, alice, bob, carol] = await ethers.getSigners();
@@ -146,7 +195,6 @@ describe('Money Market operations', async () => {
         compound = await generateCompoundFixture(deployer, opts)
 
         await dataProvider.addComptroller(protocolId, compound.comptroller.address)
-        // await logicProvider
 
     })
 
@@ -166,32 +214,76 @@ describe('Money Market operations', async () => {
     it('allows mint', async () => {
         await feedProvider()
         await feedCompound()
-        const supply_underlying = uniswap.tokens[1]
-        const supply_cToken = compound.cTokens[1]
+        const amount = expandTo18Decimals(1_000)
+        const tokenIndex = 1
+        await supplyToCompound(alice, accountAlice, tokenIndex, amount)
 
-        await supply_underlying.connect(alice).approve(accountAlice.address, constants.MaxUint256)
-        await accountAlice.connect(alice).mint(supply_underlying.address, protocolId, expandTo18Decimals(1_000))
-        const bal = await supply_cToken.balanceOf(accountAlice.address)
-        expect(bal.toString()).to.equal('1000000000000000000000')
+        const bal = await compound.cTokens[tokenIndex].balanceOf(accountAlice.address)
+        expect(bal.toString()).to.equal(amount.toString())
+    })
+
+    it('allows redeem', async () => {
+
+        await feedProvider()
+        await feedCompound()
+        const amount = expandTo18Decimals(1_000)
+        const tokenIndex = 1
+        const balPre = await compound.cTokens[tokenIndex].balanceOf(accountAlice.address)
+        await supplyToCompound(alice, accountAlice, tokenIndex, amount)
+
+        await network.provider.send("evm_increaseTime", [3600])
+        await network.provider.send("evm_mine")
+
+        await redeemUnderlyingFromCompound(alice, accountAlice, tokenIndex, amount)
+
+        const balPost = await compound.cTokens[tokenIndex].balanceOf(accountAlice.address)
+        expect(balPost.toString()).to.equal(balPre.toString())
     })
 
     it('allows borrow', async () => {
         await feedProvider()
         await feedCompound()
-        const supply_underlying = uniswap.tokens[1]
-        const borrow_underlying = uniswap.tokens[0]
-        const borrow_cToken = compound.cTokens[0]
+        const supplyAmount = expandTo18Decimals(1_000)
+        const supplyTokenIndex = 1
+        const borrowAmount = expandTo18Decimals(100)
+        const borrowTokenIndex = 0
 
+        await supplyToCompound(alice, accountAlice, supplyTokenIndex, supplyAmount)
+
+        // enter merket
         await accountAlice.connect(alice).enterMarkets(protocolId, compound.cTokens.map(cT => cT.address))
-        await supply_underlying.connect(alice).approve(accountAlice.address, constants.MaxUint256)
-        await accountAlice.connect(alice).mint(supply_underlying.address, protocolId, expandTo18Decimals(1_000))
 
-        let toBorrow = expandTo18Decimals(100)
-        await accountAlice.connect(alice).borrow(borrow_underlying.address, protocolId, toBorrow)
+        await borrowFromCompound(alice, accountAlice, borrowTokenIndex, borrowAmount)
 
-        const borrowed = await borrow_underlying.balanceOf(accountAlice.address)
+        // fetcch balance
+        const borrowed = await uniswap.tokens[borrowTokenIndex].balanceOf(accountAlice.address)
 
-        expect(borrowed.toString()).to.equal(toBorrow.toString())
+        // check whether borrowed amount was received
+        expect(borrowed.toString()).to.equal(borrowAmount.toString())
+
     })
+
+    it('allows repay borrow', async () => {
+        await feedProvider()
+        await feedCompound()
+        const supplyAmount = expandTo18Decimals(1_000)
+        const supplyTokenIndex = 1
+        const borrowAmount = expandTo18Decimals(100)
+        const borrowTokenIndex = 0
+
+        await supplyToCompound(alice, accountAlice, supplyTokenIndex, supplyAmount)
+
+        // enter merket
+        await accountAlice.connect(alice).enterMarkets(protocolId, compound.cTokens.map(cT => cT.address))
+
+        await borrowFromCompound(alice, accountAlice, borrowTokenIndex, borrowAmount)
+
+        await network.provider.send("evm_increaseTime", [3600])
+        await network.provider.send("evm_mine")
+
+        await repayBorrowToCompound(alice, accountAlice, borrowTokenIndex, borrowAmount)
+
+    })
+
 
 })

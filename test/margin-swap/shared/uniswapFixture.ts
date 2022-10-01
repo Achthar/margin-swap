@@ -10,13 +10,14 @@ import {
     IUniswapV3Factory,
     ERC20Mock,
     ERC20Mock__factory,
+    UniswapV3Factory,
 } from '../../../types'
 import { uniswapV3RouterFixture } from './unsiwapRouter'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 export interface UniswapFixture {
     weth9: IWETH9
-    factory: IUniswapV3Factory
+    factory: UniswapV3Factory
     router: MockTimeSwapRouter
     nft: MockTimeNonfungiblePositionManager
     nftDescriptor: NonfungibleTokenPositionDescriptor

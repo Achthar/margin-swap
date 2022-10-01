@@ -7,10 +7,10 @@ import "../interfaces/margin-account/IMoneyMarketDataProvider.sol";
 contract MoneyMarketDataProvider is IMoneyMarketDataProvider {
     address public dataAdmin;
 
-    mapping(address => mapping(uint256 => address)) private _cTokens;
-    mapping(address => address) private _underlyings;
+    mapping(address => mapping(uint256 => address)) internal _cTokens;
+    mapping(address => address) internal _underlyings;
     mapping(address => bool) cTokenIsValid;
-    mapping(uint256 => address) private _comptrollers;
+    mapping(uint256 => address) internal _comptrollers;
 
     modifier onlyDataAdmin() {
         require(msg.sender == dataAdmin, "Only dataAdmin can interact");

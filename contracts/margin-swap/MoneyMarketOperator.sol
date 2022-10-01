@@ -59,8 +59,7 @@ contract MoneyMarketOperator is AccountDataFetcher, IMarginAccountInitializer {
         uint256 _amountToRedeem
     ) external payable onlyOwner returns (uint256) {
         TransferHelper.safeTransferFrom(_underlying, msg.sender, address(this), _amountToRedeem);
-        CErc20Interface cToken = getCToken(_underlying, _protocolId);
-        return cToken.redeemUnderlying(_amountToRedeem);
+        return getCToken(_underlying, _protocolId).redeemUnderlying(_amountToRedeem);
     }
 
     function borrow(
@@ -68,8 +67,7 @@ contract MoneyMarketOperator is AccountDataFetcher, IMarginAccountInitializer {
         uint256 _protocolId,
         uint256 _borrowAmount
     ) external onlyOwner returns (uint256) {
-        CErc20Interface cToken = getCToken(_underlying, _protocolId);
-        return cToken.borrow(_borrowAmount);
+        return getCToken(_underlying, _protocolId).borrow(_borrowAmount);
     }
 
     function repayBorrow(
@@ -78,7 +76,6 @@ contract MoneyMarketOperator is AccountDataFetcher, IMarginAccountInitializer {
         uint256 _repayAmount
     ) external onlyOwner returns (uint256) {
         TransferHelper.safeTransferFrom(_underlying, msg.sender, address(this), _repayAmount);
-        CErc20Interface cToken = getCToken(_underlying, _protocolId);
-        return cToken.repayBorrow(_repayAmount);
+        return getCToken(_underlying, _protocolId).repayBorrow(_repayAmount);
     }
 }

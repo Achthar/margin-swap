@@ -129,7 +129,7 @@ contract MarginTrader is MoneyMarketOperator, IUniswapV3SwapCallback {
         SwapCallbackData memory data = SwapCallbackData({
             tokenIn: _uniswapV3params.tokenIn,
             tokenOut: _uniswapV3params.tokenOut,
-            tradeType: 0,
+            tradeType: 1,
             moneyMarketProtocolId: _protocolId
         });
 

@@ -15,7 +15,7 @@ import { uniswapFixture, UniswapFixture } from './shared/uniswapFixture';
 // we prepare a setup for compound in hardhat
 // this series of tests checks that the features used for the margin swap implementation
 // are correclty set up and working
-describe('Collateral Swap operations', async () => {
+describe('Margin Swaps', async () => {
     let deployer: SignerWithAddress, alice: SignerWithAddress, bob: SignerWithAddress, carol: SignerWithAddress;
     let proxyDeployer: ProxyDeployer
     let logicProvider: ImplementationProvider
@@ -98,7 +98,6 @@ describe('Collateral Swap operations', async () => {
     async function feedCompound() {
         await proxyDeployer.connect(alice).createAccount(alice.address)
         const accounts = await proxyDeployer.getAccounts(alice.address)
-        console.log(accounts)
         accountAlice = await getOperatorContract(accounts[0])
         await accountAlice.connect(alice).approveUnderlyings(uniswap.tokens.map(t => t.address), protocolId)
 
@@ -202,9 +201,9 @@ describe('Collateral Swap operations', async () => {
             await token.connect(alice).approve(uniswap.router.address, constants.MaxUint256)
             await token.connect(carol).approve(uniswap.router.address, constants.MaxUint256)
 
-            await token.connect(deployer).transfer(bob.address, expandTo18Decimals(1_000_000))
-            await token.connect(deployer).transfer(alice.address, expandTo18Decimals(1_000_000))
-            await token.connect(deployer).transfer(carol.address, expandTo18Decimals(1_000_000))
+            await token.connect(deployer).transfer(bob.address, expandTo18Decimals(500))
+            await token.connect(deployer).transfer(alice.address, expandTo18Decimals(500))
+            await token.connect(deployer).transfer(carol.address, expandTo18Decimals(500))
 
             await token.connect(deployer).approve(uniswap.router.address, constants.MaxUint256)
             await token.connect(bob).approve(uniswap.router.address, constants.MaxUint256)
@@ -218,202 +217,98 @@ describe('Collateral Swap operations', async () => {
 
     })
 
-    it('allows loan swap borrow exact in', async () => {
+    it('allows margin swap exact in', async () => {
         await feedProvider()
         await feedCompound()
-        const supplyAmount = expandTo18Decimals(1_000)
         const supplyTokenIndex = 1
-        const borrowAmount_0 = expandTo18Decimals(100)
-        const borrowTokenIndex_0 = 0
-
-        const borrowAmount_1 = expandTo18Decimals(100)
-        const borrowTokenIndex_1 = 2
-
-        await supplyToCompound(alice, accountAlice, supplyTokenIndex, supplyAmount)
-
-        // enter market
-        await accountAlice.connect(alice).enterMarkets(protocolId, compound.cTokens.map(cT => cT.address))
-
-        await borrowFromCompound(alice, accountAlice, borrowTokenIndex_0, borrowAmount_0)
-
-        await network.provider.send("evm_increaseTime", [3600])
-        await network.provider.send("evm_mine")
-
-        await borrowFromCompound(alice, accountAlice, borrowTokenIndex_1, borrowAmount_1)
-
-        const swapAmount = expandTo18Decimals(50)
-
-        await addLiquidity(uniswap.tokens[0].address, uniswap.tokens[2].address, expandTo18Decimals(10_000), expandTo18Decimals(10_000))
-        const poolAddress = await uniswap.factory.getPool(uniswap.tokens[2].address, uniswap.tokens[0].address, FeeAmount.MEDIUM)
-
-        // add pool
-        await dataProvider.addV3Pool(uniswap.tokens[0].address, uniswap.tokens[2].address, poolAddress)
-
-        const params = {
-            tokenIn: uniswap.tokens[borrowTokenIndex_0].address,
-            tokenOut: uniswap.tokens[borrowTokenIndex_1].address,
-            fee: FeeAmount.MEDIUM,
-            amountIn: swapAmount,
-            amountOutMinimum: constants.MaxUint256,
-            sqrtPriceLimitX96: '0'
-        }
-
-        await accountAlice.connect(alice).swapBorrowExactIn(protocolId, params)
-
-        const borrow0 = await compound.cTokens[borrowTokenIndex_0].borrowBalanceStored(accountAlice.address)
-        const borrow1 = await compound.cTokens[borrowTokenIndex_1].borrowBalanceStored(accountAlice.address)
-
-        console.log(borrow0.toString(), borrow1.toString())
-
-        expect(borrow0.toString()).to.equal(borrowAmount_0.add(swapAmount).toString())
-    })
-
-    it('allows loan swap borrow exact out', async () => {
-        await feedProvider()
-        await feedCompound()
-        const supplyAmount = expandTo18Decimals(1_000)
-        const supplyTokenIndex = 1
-        const borrowAmount_0 = expandTo18Decimals(230)
-        const borrowTokenIndex_0 = 0
-
-        const borrowAmount_1 = expandTo18Decimals(230)
-        const borrowTokenIndex_1 = 2
-
-        await supplyToCompound(alice, accountAlice, supplyTokenIndex, supplyAmount)
-
-        // enter market
-        await accountAlice.connect(alice).enterMarkets(protocolId, compound.cTokens.map(cT => cT.address))
-
-        await borrowFromCompound(alice, accountAlice, borrowTokenIndex_0, borrowAmount_0)
-
-        await network.provider.send("evm_increaseTime", [3600])
-        await network.provider.send("evm_mine")
-
-        await borrowFromCompound(alice, accountAlice, borrowTokenIndex_1, borrowAmount_1)
-
-        const swapAmount = expandTo18Decimals(150)
-
-        await addLiquidity(uniswap.tokens[0].address, uniswap.tokens[2].address, expandTo18Decimals(10_000), expandTo18Decimals(10_000))
-        const poolAddress = await uniswap.factory.getPool(uniswap.tokens[2].address, uniswap.tokens[0].address, FeeAmount.MEDIUM)
-
-
-        // add pool
-        await dataProvider.addV3Pool(uniswap.tokens[0].address, uniswap.tokens[2].address, poolAddress)
-
-        const params = {
-            tokenIn: uniswap.tokens[borrowTokenIndex_0].address,
-            tokenOut: uniswap.tokens[borrowTokenIndex_1].address,
-            fee: FeeAmount.MEDIUM,
-            amountOut: swapAmount,
-            amountInMaximum: constants.MaxUint256,
-            sqrtPriceLimitX96: '0'
-        }
-
-        await accountAlice.connect(alice).swapBorrowExactOut(protocolId, params)
-
-        const borrow0 = await compound.cTokens[borrowTokenIndex_0].borrowBalanceStored(accountAlice.address)
-        const borrow1 = await compound.cTokens[borrowTokenIndex_1].borrowBalanceStored(accountAlice.address)
-
-        console.log(borrow0.toString(), borrow1.toString())
-
-        expect(borrow1.toString()).to.equal(borrowAmount_1.sub(swapAmount).toString())
-    })
-
-    it('allows collateral swap exact in', async () => {
-        await feedProvider()
-        await feedCompound()
-        const supplyAmount = expandTo18Decimals(1_000)
-        const supplyTokenIndex_0 = 1
-        const supplyTokenIndex_1 = 2
-        const borrowAmount = expandTo18Decimals(400)
         const borrowTokenIndex = 0
-
-        await supplyToCompound(alice, accountAlice, supplyTokenIndex_0, supplyAmount)
+        const providedAmount = expandTo18Decimals(500)
 
         // enter market
         await accountAlice.connect(alice).enterMarkets(protocolId, compound.cTokens.map(cT => cT.address))
 
-        await borrowFromCompound(alice, accountAlice, borrowTokenIndex, borrowAmount)
-
         await network.provider.send("evm_increaseTime", [3600])
         await network.provider.send("evm_mine")
 
-        const swapAmount = expandTo18Decimals(900)
+        const swapAmount = expandTo18Decimals(450)
 
         await addLiquidity(
-            uniswap.tokens[supplyTokenIndex_0].address,
-            uniswap.tokens[supplyTokenIndex_1].address,
+            uniswap.tokens[supplyTokenIndex].address,
+            uniswap.tokens[borrowTokenIndex].address,
             expandTo18Decimals(10_000),
             expandTo18Decimals(10_000)
         )
 
-        const poolAddress = await uniswap.factory.getPool(uniswap.tokens[supplyTokenIndex_0].address, uniswap.tokens[supplyTokenIndex_1].address, FeeAmount.MEDIUM)
+        const poolAddress = await uniswap.factory.getPool(uniswap.tokens[supplyTokenIndex].address, uniswap.tokens[borrowTokenIndex].address, FeeAmount.MEDIUM)
 
         // add pool
-        await dataProvider.addV3Pool(uniswap.tokens[supplyTokenIndex_0].address, uniswap.tokens[supplyTokenIndex_1].address, poolAddress)
+        await dataProvider.addV3Pool(uniswap.tokens[supplyTokenIndex].address, uniswap.tokens[borrowTokenIndex].address, poolAddress)
 
         const params = {
-            tokenIn: uniswap.tokens[supplyTokenIndex_0].address,
-            tokenOut: uniswap.tokens[supplyTokenIndex_1].address,
+            tokenIn: uniswap.tokens[borrowTokenIndex].address,
+            tokenOut: uniswap.tokens[supplyTokenIndex].address,
             fee: FeeAmount.MEDIUM,
+            userAmountProvided: providedAmount,
             amountIn: swapAmount,
-            amountOutMinimum: constants.Zero,
             sqrtPriceLimitX96: '0'
         }
 
-        await accountAlice.connect(alice).swapCollateralExactIn(protocolId, params)
+        await uniswap.tokens[supplyTokenIndex].connect(alice).approve(accountAlice.address, constants.MaxUint256)
 
-        const supply0 = await compound.cTokens[supplyTokenIndex_0].balanceOf(accountAlice.address)
-        expect(supply0.toString()).to.equal(supplyAmount.sub(swapAmount))
+        // execute margin swap
+        await accountAlice.connect(alice).openMarginPositionExactIn(protocolId, params)
+
+        const supply0 = await compound.cTokens[supplyTokenIndex].balanceOf(accountAlice.address)
+        const borrowAmount = await compound.cTokens[borrowTokenIndex].borrowBalanceStored(accountAlice.address)
+        console.log(supply0.toString(), borrowAmount.toString())
+        expect(borrowAmount.toString()).to.equal(swapAmount.toString())
     })
 
-    it('allows collateral swap exact out', async () => {
+    it('allows margin swap exact out', async () => {
         await feedProvider()
         await feedCompound()
-        const supplyAmount = expandTo18Decimals(1_000)
-        const supplyTokenIndex_0 = 1
-        const supplyTokenIndex_1 = 2
-        const borrowAmount = expandTo18Decimals(400)
+        const supplyTokenIndex = 1
         const borrowTokenIndex = 0
-
-        await supplyToCompound(alice, accountAlice, supplyTokenIndex_0, supplyAmount)
+        const providedAmount = expandTo18Decimals(500)
 
         // enter market
         await accountAlice.connect(alice).enterMarkets(protocolId, compound.cTokens.map(cT => cT.address))
 
-        await borrowFromCompound(alice, accountAlice, borrowTokenIndex, borrowAmount)
-
         await network.provider.send("evm_increaseTime", [3600])
         await network.provider.send("evm_mine")
 
-        const swapAmount = expandTo18Decimals(900)
+        const swapAmount = expandTo18Decimals(450)
 
         await addLiquidity(
-            uniswap.tokens[supplyTokenIndex_0].address,
-            uniswap.tokens[supplyTokenIndex_1].address,
+            uniswap.tokens[supplyTokenIndex].address,
+            uniswap.tokens[borrowTokenIndex].address,
             expandTo18Decimals(10_000),
             expandTo18Decimals(10_000)
         )
 
-        const poolAddress = await uniswap.factory.getPool(uniswap.tokens[supplyTokenIndex_0].address, uniswap.tokens[supplyTokenIndex_1].address, FeeAmount.MEDIUM)
+        const poolAddress = await uniswap.factory.getPool(uniswap.tokens[supplyTokenIndex].address, uniswap.tokens[borrowTokenIndex].address, FeeAmount.MEDIUM)
 
         // add pool
-        await dataProvider.addV3Pool(uniswap.tokens[supplyTokenIndex_0].address, uniswap.tokens[supplyTokenIndex_1].address, poolAddress)
+        await dataProvider.addV3Pool(uniswap.tokens[supplyTokenIndex].address, uniswap.tokens[borrowTokenIndex].address, poolAddress)
 
         const params = {
-            tokenIn: uniswap.tokens[supplyTokenIndex_0].address,
-            tokenOut: uniswap.tokens[supplyTokenIndex_1].address,
+            tokenIn: uniswap.tokens[borrowTokenIndex].address,
+            tokenOut: uniswap.tokens[supplyTokenIndex].address,
             fee: FeeAmount.MEDIUM,
+            userAmountProvided: providedAmount,
             amountOut: swapAmount,
-            amountInMaximum: constants.MaxUint256,
             sqrtPriceLimitX96: '0'
         }
 
-        await accountAlice.connect(alice).swapCollateralExactOut(protocolId, params)
+        await uniswap.tokens[supplyTokenIndex].connect(alice).approve(accountAlice.address, constants.MaxUint256)
 
-        const supply1 = await compound.cTokens[supplyTokenIndex_1].balanceOf(accountAlice.address)
-        expect(supply1.toString()).to.equal(swapAmount)
+        // execute margin swap
+        await accountAlice.connect(alice).openMarginPositionExactOut(protocolId, params)
+
+        const supply0 = await compound.cTokens[supplyTokenIndex].balanceOf(accountAlice.address)
+        const borrowAmount = await compound.cTokens[borrowTokenIndex].borrowBalanceStored(accountAlice.address)
+        console.log(supply0.toString(), borrowAmount.toString())
+        expect(supply0.toString()).to.equal(providedAmount.add(swapAmount).toString())
     })
-
 
 })

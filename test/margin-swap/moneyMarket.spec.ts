@@ -70,7 +70,6 @@ describe('Money Market operations', async () => {
     async function feedCompound() {
         await proxyDeployer.connect(alice).createAccount(alice.address)
         const accounts = await proxyDeployer.getAccounts(alice.address)
-        console.log(accounts)
         accountAlice = await getOperatorContract(accounts[0])
         await accountAlice.connect(alice).approveUnderlyings(uniswap.tokens.map(t => t.address), protocolId)
 
@@ -160,12 +159,6 @@ describe('Money Market operations', async () => {
             closeFactor: ONE_18
         }
 
-        beforeEach('create 0-1 and 1-2 pools', async () => {
-            await createPool(uniswap.tokens[0].address, uniswap.tokens[1].address)
-            await createPool(uniswap.tokens[1].address, uniswap.tokens[2].address)
-            await createPoolWETH9(uniswap.tokens[0].address)
-        })
-
         // approve & fund wallets
         for (const token of uniswap.tokens) {
             await token.approve(uniswap.router.address, constants.MaxUint256)
@@ -206,7 +199,6 @@ describe('Money Market operations', async () => {
         await feedProvider()
         await proxyDeployer.connect(alice).createAccount(alice.address)
         const accounts = await proxyDeployer.getAccounts(alice.address)
-        console.log(accounts)
         const acccountContract = await getOperatorContract(accounts[0])
         await acccountContract.connect(alice).approveUnderlyings(uniswap.tokens.map(t => t.address), protocolId)
     })
@@ -250,7 +242,7 @@ describe('Money Market operations', async () => {
 
         await supplyToCompound(alice, accountAlice, supplyTokenIndex, supplyAmount)
 
-        // enter merket
+        // enter market
         await accountAlice.connect(alice).enterMarkets(protocolId, compound.cTokens.map(cT => cT.address))
 
         await borrowFromCompound(alice, accountAlice, borrowTokenIndex, borrowAmount)
@@ -273,7 +265,7 @@ describe('Money Market operations', async () => {
 
         await supplyToCompound(alice, accountAlice, supplyTokenIndex, supplyAmount)
 
-        // enter merket
+        // enter market
         await accountAlice.connect(alice).enterMarkets(protocolId, compound.cTokens.map(cT => cT.address))
 
         await borrowFromCompound(alice, accountAlice, borrowTokenIndex, borrowAmount)

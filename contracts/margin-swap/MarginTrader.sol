@@ -150,23 +150,90 @@ contract MarginTrader is MoneyMarketOperator, IUniswapV3SwapCallback {
         if (sqrtPriceLimitX96 == 0) require(amountOutReceived == _uniswapV3params.amountOut);
     }
 
-    function openMarginPositionExactOut(
-        address _collateralAsset,
-        address _borrowAsset,
-        address _userAsset,
-        uint256 _collateralAmount,
-        uint256 _maxBorrowAmount,
-        uint256 _protocolId
-    ) external payable onlyOwner {}
+    struct MarginSwapParamsExactOut {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        uint256 userAmountProvided;
+        uint256 amountOut;
+        uint160 sqrtPriceLimitX96;
+    }
 
-    function openMarginPositionExactIn(
-        address _collateralAsset,
-        address _borrowAsset,
-        address _userAsset,
-        uint256 _minCollateralAmount,
-        uint256 _borrowAmount,
-        uint256 _protocolId
-    ) external payable onlyOwner {}
+    function openMarginPositionExactOut(uint256 _protocolId, MarginSwapParamsExactOut memory _marginSwapParams)
+        external
+        payable
+        onlyOwner
+        returns (uint256 amountIn)
+    {
+        TransferHelper.safeTransferFrom(_marginSwapParams.tokenOut, msg.sender, address(this), _marginSwapParams.userAmountProvided);
+        CErc20Interface cTokenOut = IDataProvider(dataProvider).cToken(_marginSwapParams.tokenOut, _protocolId);
+        cTokenOut.mint(_marginSwapParams.userAmountProvided);
+
+        address pool = IDataProvider(dataProvider).getV3Pool(_marginSwapParams.tokenIn, _marginSwapParams.tokenOut, _marginSwapParams.fee);
+        SwapCallbackData memory data = SwapCallbackData({
+            tokenIn: _marginSwapParams.tokenIn,
+            tokenOut: _marginSwapParams.tokenOut,
+            tradeType: 2,
+            moneyMarketProtocolId: _protocolId
+        });
+
+        uint160 sqrtPriceLimitX96 = _marginSwapParams.sqrtPriceLimitX96;
+
+        bool zeroForOne = _marginSwapParams.tokenIn < _marginSwapParams.tokenOut;
+        (int256 amount0, int256 amount1) = IUniswapV3Pool(pool).swap(
+            address(this),
+            zeroForOne,
+            -_marginSwapParams.amountOut.toInt256(),
+            sqrtPriceLimitX96 == 0 ? (zeroForOne ? TickMathConstants.MIN_SQRT_RATIO + 1 : TickMathConstants.MAX_SQRT_RATIO - 1) : sqrtPriceLimitX96,
+            abi.encode(data)
+        );
+        uint256 amountOutReceived;
+        (amountIn, amountOutReceived) = zeroForOne ? (uint256(amount0), uint256(-amount1)) : (uint256(amount1), uint256(-amount0));
+        // it's technically possible to not receive the full output amount,
+        // so if no price limit has been specified, require this possibility away
+        if (sqrtPriceLimitX96 == 0) require(amountOutReceived == _marginSwapParams.amountOut);
+    }
+
+    struct MarginSwapParamsExactIn {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        uint256 userAmountProvided;
+        uint256 amountIn;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    function openMarginPositionExactIn(uint256 _protocolId, MarginSwapParamsExactIn memory _marginSwapParams)
+        external
+        payable
+        onlyOwner
+        returns (uint256)
+    {
+        TransferHelper.safeTransferFrom(_marginSwapParams.tokenOut, msg.sender, address(this), _marginSwapParams.userAmountProvided);
+        CErc20Interface cTokenOut = IDataProvider(dataProvider).cToken(_marginSwapParams.tokenOut, _protocolId);
+        cTokenOut.mint(_marginSwapParams.userAmountProvided);
+        address pool = IDataProvider(dataProvider).getV3Pool(_marginSwapParams.tokenIn, _marginSwapParams.tokenOut, _marginSwapParams.fee);
+
+        SwapCallbackData memory data = SwapCallbackData({
+            tokenIn: _marginSwapParams.tokenIn,
+            tokenOut: _marginSwapParams.tokenOut,
+            tradeType: 2,
+            moneyMarketProtocolId: _protocolId
+        });
+
+        uint160 sqrtPriceLimitX96 = _marginSwapParams.sqrtPriceLimitX96;
+
+        bool zeroForOne = _marginSwapParams.tokenIn < _marginSwapParams.tokenOut;
+        (int256 amount0, int256 amount1) = IUniswapV3Pool(pool).swap(
+            address(this),
+            zeroForOne,
+            _marginSwapParams.amountIn.toInt256(),
+            sqrtPriceLimitX96 == 0 ? (zeroForOne ? TickMathConstants.MIN_SQRT_RATIO + 1 : TickMathConstants.MAX_SQRT_RATIO - 1) : sqrtPriceLimitX96,
+            abi.encode(data)
+        );
+
+        return uint256(-(zeroForOne ? amount1 : amount0));
+    }
 
     struct SwapCallbackData {
         address tokenIn;
@@ -215,19 +282,18 @@ contract MarginTrader is MoneyMarketOperator, IUniswapV3SwapCallback {
             return;
         }
 
-        // if (isExactInput) {
-        //     // pay(tokenIn, data.payer, msg.sender, amountToPay);
-        // } else {
-        //     // either initiate the next swap or pay
-        //     if (data.path.hasMultiplePools()) {
-        //         data.path = data.path.skipToken();
-        //         // exactOutputInternal(amountToPay, msg.sender, 0, data);
-        //     } else {
-        //         // amountInCached = amountToPay;
-        //         tokenIn = tokenOut; // swap in/out because exact output swaps are reversed
-        //         // pay(tokenIn, data.payer, msg.sender, amountToPay);
-        //     }
-        // }
+        // margin swap;
+        if (tradeType == 2) {
+            (uint256 amountToBorrow, uint256 amountToSupply) = amount0Delta > 0
+                ? (uint256(amount0Delta), uint256(-amount1Delta))
+                : (uint256(amount1Delta), uint256(-amount0Delta));
+
+            cTokenOut.mint(amountToSupply);
+            cTokenIn.borrow(amountToBorrow);
+            TransferHelper.safeTransfer(tokenIn, msg.sender, amountToBorrow);
+
+            return;
+        }
 
         return;
     }

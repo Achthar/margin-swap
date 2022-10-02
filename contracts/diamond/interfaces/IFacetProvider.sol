@@ -20,5 +20,4 @@ interface IFacetProvider {
     function facetAddresses() external view returns (address[] memory);
 
     function supportedInterfaces(bytes4 _interface) external view returns (bool);
-
 }

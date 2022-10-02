@@ -1,32 +1,29 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { BigNumber, constants } from 'ethers';
 import { ethers, network } from 'hardhat'
-import { connect } from 'http2';
-import { MoneyMarketOperator__factory, ImplementationProvider, ImplementationProvider__factory, MoneyMarketOperator, ProxyDeployer, ProxyDeployer__factory, MoneyMarketDataProvider, MoneyMarketDataProvider__factory, MarginAccountProxy__factory, ERC20Mock } from '../../types';
-import { FeeAmount, TICK_SPACINGS } from '../uniswap-v3/periphery/shared/constants';
-import { encodePriceSqrt } from '../uniswap-v3/periphery/shared/encodePriceSqrt';
-import { expandTo18Decimals } from '../uniswap-v3/periphery/shared/expandTo18Decimals';
-import { getMaxTick, getMinTick } from '../uniswap-v3/periphery/shared/ticks';
-import { CompoundFixture, CompoundOptions, generateCompoundFixture } from './shared/compoundFixture';
-import { expect } from './shared/expect'
-import { ONE_18 } from './shared/marginSwapFixtures';
-import { uniswapFixture, UniswapFixture } from './shared/uniswapFixture';
+import { MoneyMarketDataProvider, MoneyMarketDataProvider__factory, MarginAccountProxy__factory, ERC20Mock, DelegatorFacet, AccountInit, MoneyMarketFacet, DiamondFacetManager, DiamondFactory, MoneyMarketFacet__factory } from '../../../types';
+import { FeeAmount, TICK_SPACINGS } from '../../uniswap-v3/periphery/shared/constants';
+import { encodePriceSqrt } from '../../uniswap-v3/periphery/shared/encodePriceSqrt';
+import { expandTo18Decimals } from '../../uniswap-v3/periphery/shared/expandTo18Decimals';
+import { getMaxTick, getMinTick } from '../../uniswap-v3/periphery/shared/ticks';
+import { accountFactoryFixture, AccountFactoryFixture, createMoneyMarketAccount } from '../shared/accountFactoryFixture';
+import { CompoundFixture, CompoundOptions, generateCompoundFixture } from '../shared/compoundFixture';
+import { expect } from '../shared/expect'
+import { ONE_18 } from '../shared/marginSwapFixtures';
+import { uniswapFixture, UniswapFixture } from '../shared/uniswapFixture';
 
 
 // we prepare a setup for compound in hardhat
 // this series of tests checks that the features used for the margin swap implementation
 // are correclty set up and working
-describe('Money Market operations', async () => {
+describe('Diamond Money Market operations', async () => {
     let deployer: SignerWithAddress, alice: SignerWithAddress, bob: SignerWithAddress, carol: SignerWithAddress;
-    let proxyDeployer: ProxyDeployer
-    let logicProvider: ImplementationProvider
-    let logic: MoneyMarketOperator
-    let dataProvider: MoneyMarketDataProvider
     let uniswap: UniswapFixture
     let compound: CompoundFixture
     let opts: CompoundOptions
-    let accountAlice: MoneyMarketOperator
+    let accountAlice: MoneyMarketFacet
     let protocolId = 0
+    let accountFixture: AccountFactoryFixture
 
     const liquidity = 1000000
     async function createPool(tokenAddressA: string, tokenAddressB: string) {
@@ -64,15 +61,11 @@ describe('Money Market operations', async () => {
     }
 
     async function getOperatorContract(acc: string) {
-        return await new ethers.Contract(acc, MoneyMarketOperator__factory.createInterface()) as MoneyMarketOperator
+        return await new ethers.Contract(acc, MoneyMarketFacet__factory.createInterface()) as MoneyMarketFacet
     }
 
     async function feedCompound() {
-        await proxyDeployer.connect(alice).createAccount(alice.address)
-        const accounts = await proxyDeployer.getAccounts(alice.address)
-        accountAlice = await getOperatorContract(accounts[0])
         await accountAlice.connect(alice).approveUnderlyings(uniswap.tokens.map(t => t.address), protocolId)
-
 
         for (let i = 0; i < uniswap.tokens.length; i++) {
             const tok = uniswap.tokens[i]
@@ -86,13 +79,13 @@ describe('Money Market operations', async () => {
 
     async function feedProvider() {
         for (let i = 0; i < uniswap.tokens.length; i++) {
-            await dataProvider.addCToken(uniswap.tokens[i].address, protocolId, compound.cTokens[i].address)
+            await accountFixture.dataProvider.addCToken(uniswap.tokens[i].address, protocolId, compound.cTokens[i].address)
         }
     }
 
     async function supplyToCompound(
         signer: SignerWithAddress,
-        account: MoneyMarketOperator,
+        account: MoneyMarketFacet,
         index: number,
         amount: BigNumber
     ) {
@@ -105,7 +98,7 @@ describe('Money Market operations', async () => {
 
     async function redeemUnderlyingFromCompound(
         signer: SignerWithAddress,
-        account: MoneyMarketOperator,
+        account: MoneyMarketFacet,
         index: number,
         amount: BigNumber
     ) {
@@ -118,7 +111,7 @@ describe('Money Market operations', async () => {
 
     async function borrowFromCompound(
         signer: SignerWithAddress,
-        account: MoneyMarketOperator,
+        account: MoneyMarketFacet,
         index: number,
         amount: BigNumber
     ) {
@@ -128,7 +121,7 @@ describe('Money Market operations', async () => {
 
     async function repayBorrowToCompound(
         signer: SignerWithAddress,
-        account: MoneyMarketOperator,
+        account: MoneyMarketFacet,
         index: number,
         amount: BigNumber
     ) {
@@ -142,11 +135,10 @@ describe('Money Market operations', async () => {
 
     beforeEach('Deploy Account, Trader, Uniswap and Compound', async () => {
         [deployer, alice, bob, carol] = await ethers.getSigners();
-        proxyDeployer = await new ProxyDeployer__factory(deployer).deploy()
-        logic = await new MoneyMarketOperator__factory(deployer).deploy()
-        logicProvider = await new ImplementationProvider__factory(deployer).deploy(logic.address)
-        dataProvider = await new MoneyMarketDataProvider__factory(deployer).deploy()
-        await proxyDeployer.initialize(logicProvider.address, dataProvider.address)
+
+        accountFixture = await accountFactoryFixture(deployer)
+
+        accountAlice = await createMoneyMarketAccount(alice, accountFixture)
         uniswap = await uniswapFixture(deployer, 5)
         opts = {
             underlyings: uniswap.tokens,
@@ -187,17 +179,18 @@ describe('Money Market operations', async () => {
 
         compound = await generateCompoundFixture(deployer, opts)
 
-        await dataProvider.addComptroller(protocolId, compound.comptroller.address)
+        await accountFixture.dataProvider.addComptroller(protocolId, compound.comptroller.address)
 
     })
 
     it('deploys account', async () => {
-        await proxyDeployer.connect(alice).createAccount(alice.address)
+        await accountFixture.diamondDeployer.connect(alice).createAccount()
     })
 
     it('allows approving underlyings', async () => {
+        const proxyDeployer = accountFixture.diamondDeployer
         await feedProvider()
-        await proxyDeployer.connect(alice).createAccount(alice.address)
+        await proxyDeployer.connect(alice).createAccount()
         const accounts = await proxyDeployer.getAccounts(alice.address)
         const acccountContract = await getOperatorContract(accounts[0])
         await acccountContract.connect(alice).approveUnderlyings(uniswap.tokens.map(t => t.address), protocolId)
@@ -279,3 +272,16 @@ describe('Money Market operations', async () => {
 
 
 })
+
+
+// MoneyMarketFacet                                                                             ·  approveUnderlyings         ·      62027  ·     351142  ·         293305  ·            5  ·          -  │
+// ································································································|·····························|·············|·············|·················|···············|··············
+// |  MoneyMarketFacet                                                                             ·  borrow                     ·     421012  ·     421024  ·         421018  ·            2  ·          -  │
+// ································································································|·····························|·············|·············|·················|···············|··············
+// |  MoneyMarketFacet                                                                             ·  enterMarkets               ·     322553  ·     322565  ·         322559  ·            2  ·          -  │
+// ································································································|·····························|·············|·············|·················|···············|··············
+// |  MoneyMarketFacet                                                                             ·  mint                       ·          -  ·          -  ·         176256  ·            4  ·          -  │
+// ································································································|·····························|·············|·············|·················|···············|··············
+// |  MoneyMarketFacet                                                                             ·  redeemUnderlying           ·          -  ·          -  ·         155198  ·            1  ·          -  │
+// ································································································|·····························|·············|·············|·················|···············|··············
+// |  MoneyMarketFacet                                                                             ·  repayBorrow                ·          -  ·          -  ·         124537  ·            1  ·          -  │

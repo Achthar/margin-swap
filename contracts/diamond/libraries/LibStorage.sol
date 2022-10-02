@@ -5,14 +5,7 @@ pragma solidity ^0.8.16;
 
 // Management storage that stores the different DAO roles
 struct MarginSwapStorage {
-    address governor;
-    address guardian;
-    address policy;
-    address vault;
-    address newGovernor;
-    address newGuardian;
-    address newPolicy;
-    address newVault;
+    uint256 test;
 }
 
 struct GeneralStorage {
@@ -26,7 +19,7 @@ struct UserAccountStorage {
 }
 
 struct DataProviderStorage {
-    address baseDataProvider;
+    address dataProvider;
 }
 
 library LibStorage {
@@ -34,6 +27,7 @@ library LibStorage {
     bytes32 constant DATA_PROVIDER_STORAGE = keccak256("account.storage.dataProvider");
     bytes32 constant MARGIN_SWAP_STORAGE = keccak256("account.storage.marginSwap");
     bytes32 constant GENERAL_STORAGE = keccak256("account.storage.general");
+    bytes32 constant USER_ACCOUNT_STORAGE = keccak256("account.storage.user");
 
     function dataProviderStorage() internal pure returns (DataProviderStorage storage ps) {
         bytes32 position = DATA_PROVIDER_STORAGE;
@@ -49,12 +43,26 @@ library LibStorage {
         }
     }
 
-
     function generalStorage() internal pure returns (GeneralStorage storage gs) {
         bytes32 position = GENERAL_STORAGE;
         assembly {
             gs.slot := position
         }
+    }
+
+    function userAccountStorage() internal pure returns (UserAccountStorage storage us) {
+        bytes32 position = USER_ACCOUNT_STORAGE;
+        assembly {
+            us.slot := position
+        }
+    }
+
+    function enforceManager() internal view {
+        require(userAccountStorage().managers[msg.sender], "Only manager can interact.");
+    }
+
+    function enforceAccountOwner() internal view {
+        require(msg.sender == userAccountStorage().accountOwner, "Only the account owner can interact.");
     }
 }
 
@@ -78,5 +86,9 @@ contract WithStorage {
 
     function gs() internal pure returns (GeneralStorage storage) {
         return LibStorage.generalStorage();
+    }
+
+    function us() internal pure returns (UserAccountStorage storage) {
+        return LibStorage.userAccountStorage();
     }
 }

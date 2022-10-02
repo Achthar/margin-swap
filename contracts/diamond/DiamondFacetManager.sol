@@ -9,7 +9,8 @@ import {IFacetProvider} from "./interfaces/IFacetProvider.sol";
 
 // A Management contract for a dimaond of which the facets are provided by an external contract
 
-contract DiamonFacetManager is IFacetProvider {
+contract DiamondFacetManager is IFacetProvider {
+    event DiamondUpgrade(IDiamondCut.FacetCut[] _diamondCut);
     // maps function selector to the facet address and
     // the position of the selector in the _facetFunctionSelectors.selectors array
     mapping(bytes4 => FacetAddressAndPosition) private _selectorToFacetAndPosition;
@@ -43,24 +44,24 @@ contract DiamonFacetManager is IFacetProvider {
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    function setContractOwner(address _newOwner) internal {
+    constructor() {
+        contractOwner = msg.sender;
+    }
+
+    modifier enforceIsContractOwner() {
+        require(msg.sender == contractOwner, "LibDiamond: Must be contract owner");
+        _;
+    }
+
+    function setContractOwner(address _newOwner) external enforceIsContractOwner {
         address previousOwner = contractOwner;
         contractOwner = _newOwner;
         emit OwnershipTransferred(previousOwner, _newOwner);
     }
 
-    function enforceIsContractOwner() internal view {
-        require(msg.sender == contractOwner, "LibDiamond: Must be contract owner");
-    }
-
-    event DiamondCut(IDiamondCut.FacetCut[] _diamondCut, address _init, bytes _calldata);
-
-    // Internal function version of diamondCut
-    function diamondCut(
-        IDiamondCut.FacetCut[] memory _diamondCut,
-        address _init,
-        bytes memory _calldata
-    ) internal {
+    // External function version of diamondCut
+    // It has no initializer as the diamond is not supposed to require storage that has to be initialized
+    function diamondCut(IDiamondCut.FacetCut[] memory _diamondCut) external enforceIsContractOwner {
         for (uint256 facetIndex; facetIndex < _diamondCut.length; facetIndex++) {
             IDiamondCut.FacetCutAction action = _diamondCut[facetIndex].action;
             if (action == IDiamondCut.FacetCutAction.Add) {
@@ -73,11 +74,10 @@ contract DiamonFacetManager is IFacetProvider {
                 revert("LibDiamondCut: Incorrect FacetCutAction");
             }
         }
-        emit DiamondCut(_diamondCut, _init, _calldata);
-        initializeDiamondCut(_init, _calldata);
+        emit DiamondUpgrade(_diamondCut);
     }
 
-    function addFunctions(address _facetAddress, bytes4[] memory _functionSelectors) internal {
+    function addFunctions(address _facetAddress, bytes4[] memory _functionSelectors) private {
         require(_functionSelectors.length > 0, "LibDiamondCut: No selectors in facet to cut");
         require(_facetAddress != address(0), "LibDiamondCut: Add facet can't be address(0)");
         uint96 selectorPosition = uint96(_facetFunctionSelectors[_facetAddress].functionSelectors.length);
@@ -94,7 +94,7 @@ contract DiamonFacetManager is IFacetProvider {
         }
     }
 
-    function replaceFunctions(address _facetAddress, bytes4[] memory _functionSelectors) internal {
+    function replaceFunctions(address _facetAddress, bytes4[] memory _functionSelectors) private {
         require(_functionSelectors.length > 0, "LibDiamondCut: No selectors in facet to cut");
         require(_facetAddress != address(0), "LibDiamondCut: Add facet can't be address(0)");
         uint96 selectorPosition = uint96(_facetFunctionSelectors[_facetAddress].functionSelectors.length);
@@ -112,7 +112,7 @@ contract DiamonFacetManager is IFacetProvider {
         }
     }
 
-    function removeFunctions(address _facetAddress, bytes4[] memory _functionSelectors) internal {
+    function removeFunctions(address _facetAddress, bytes4[] memory _functionSelectors) private {
         require(_functionSelectors.length > 0, "LibDiamondCut: No selectors in facet to cut");
         // if function does not exist then do nothing and return
         require(_facetAddress == address(0), "LibDiamondCut: Remove facet address must be address(0)");
@@ -168,26 +168,6 @@ contract DiamonFacetManager is IFacetProvider {
             }
             _facetAddresses.pop();
             delete _facetFunctionSelectors[_facetAddress].facetAddressPosition;
-        }
-    }
-
-    function initializeDiamondCut(address _init, bytes memory _calldata) internal {
-        if (_init == address(0)) {
-            require(_calldata.length == 0, "LibDiamondCut: _init is address(0) but_calldata is not empty");
-        } else {
-            require(_calldata.length > 0, "LibDiamondCut: _calldata is empty but _init is not address(0)");
-            if (_init != address(this)) {
-                enforceHasContractCode(_init, "LibDiamondCut: _init address has no code");
-            }
-            (bool success, bytes memory error) = _init.delegatecall(_calldata);
-            if (!success) {
-                if (error.length > 0) {
-                    // bubble up the error
-                    revert(string(error));
-                } else {
-                    revert("LibDiamondCut: _init function reverted");
-                }
-            }
         }
     }
 

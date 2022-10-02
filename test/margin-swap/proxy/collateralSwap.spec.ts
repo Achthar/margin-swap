@@ -1,15 +1,15 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { BigNumber, constants } from 'ethers';
 import { ethers, network } from 'hardhat'
-import { ImplementationProvider, ImplementationProvider__factory, ProxyDeployer, ProxyDeployer__factory, MoneyMarketDataProvider, MoneyMarketDataProvider__factory, MarginAccountProxy__factory, ERC20Mock, MarginTrader, MarginTrader__factory, UniswapV3Pool__factory, UniswapV3Pool, MarginTradeDataProvider__factory, MarginTradeDataProvider } from '../../types';
-import { FeeAmount, TICK_SPACINGS } from '../uniswap-v3/periphery/shared/constants';
-import { encodePriceSqrt } from '../uniswap-v3/periphery/shared/encodePriceSqrt';
-import { expandTo18Decimals } from '../uniswap-v3/periphery/shared/expandTo18Decimals';
-import { getMaxTick, getMinTick } from '../uniswap-v3/periphery/shared/ticks';
-import { CompoundFixture, CompoundOptions, generateCompoundFixture } from './shared/compoundFixture';
-import { expect } from './shared/expect'
-import { ONE_18 } from './shared/marginSwapFixtures';
-import { uniswapFixture, UniswapFixture } from './shared/uniswapFixture';
+import { ImplementationProvider, ImplementationProvider__factory, ProxyDeployer, ProxyDeployer__factory, MoneyMarketDataProvider, MoneyMarketDataProvider__factory, MarginAccountProxy__factory, ERC20Mock, MarginTrader, MarginTrader__factory, UniswapV3Pool__factory, UniswapV3Pool, MarginTradeDataProvider__factory, MarginTradeDataProvider } from '../../../types';
+import { FeeAmount, TICK_SPACINGS } from '../../uniswap-v3/periphery/shared/constants';
+import { encodePriceSqrt } from '../../uniswap-v3/periphery/shared/encodePriceSqrt';
+import { expandTo18Decimals } from '../../uniswap-v3/periphery/shared/expandTo18Decimals';
+import { getMaxTick, getMinTick } from '../../uniswap-v3/periphery/shared/ticks';
+import { CompoundFixture, CompoundOptions, generateCompoundFixture } from '../shared/compoundFixture';
+import { expect } from '../shared/expect'
+import { ONE_18 } from '../shared/marginSwapFixtures';
+import { uniswapFixture, UniswapFixture } from '../shared/uniswapFixture';
 
 
 // we prepare a setup for compound in hardhat

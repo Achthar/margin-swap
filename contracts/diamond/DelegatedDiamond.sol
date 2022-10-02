@@ -18,6 +18,7 @@ contract DelegatedDiamond {
     constructor(address _diamondFacetProvider) payable {
         LibDelegatedDiamond.DelegatedDiamondStorage storage ds = LibDelegatedDiamond.diamondStorage();
         ds.facetProvider = _diamondFacetProvider;
+        ds.factory = msg.sender;
     }
 
     // Find facet for function that is called and execute the

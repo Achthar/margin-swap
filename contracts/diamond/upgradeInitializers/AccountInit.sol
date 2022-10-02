@@ -19,32 +19,27 @@ import {
     } from "../libraries/LibStorage.sol";
 
 import {IDiamondLoupe} from "../interfaces/IDiamondLoupe.sol";
+import {IAccountInit} from "../interfaces/IAccountInit.sol";
 import {IDiamondCut} from "../interfaces/IDiamondCut.sol";
 import {IERC173} from "../interfaces/IERC173.sol";
 import {IERC165} from "../interfaces/IERC165.sol";
-import {IManagement} from "../interfaces/IManagement.sol";
-import {IREQ} from "../interfaces/IREQ.sol";
-import {ICreditREQ} from "../interfaces/ICreditREQ.sol";
 
 // It is expected that this contract is customized if you want to deploy your diamond
 // with data from a deployment script. Use the init function to initialize state variables
 // of your diamond. Add parameters to the init funciton if you need to.
 
-contract AccountInit is WithStorage {
+contract AccountInit is WithStorage, IAccountInit {
     // factory is set in the constructor
     constructor() {
-        GeneralStorage storage gs = LibStorage.generalStorage();
+        LibDelegatedDiamond.DelegatedDiamondStorage storage gs = LibDelegatedDiamond.diamondStorage();
         gs.factory = msg.sender;
     }
 
-    // You can add parameters to this function in order to pass in
-    // data to set your own state variables
-    function init(address _facetProvider, address _dataProvider) external {
-        require(LibStorage.generalStorage().factory == msg.sender, "Only factory can in itialize");
-        // adding ERC165 data
-        LibDelegatedDiamond.DelegatedDiamondStorage storage ds = LibDelegatedDiamond.diamondStorage();
-        ds.facetProvider = _facetProvider;
-
+    // the initializer only initializes the facet provider, data provider and owner
+    // the facets are provided by views in this facet provider contract
+    // the diamond cut facet is not existing in this contract, it is implemented in the provider
+    function init(address _dataProvider, address _owner) external override {
+        require(LibDelegatedDiamond.diamondStorage().factory == msg.sender, "Only factory can in itialize");
         // here the account data is initialized
         // EIP-2535 specifies that the `diamondCut` function takes two optional
         // arguments: address _init and bytes calldata _calldata
@@ -53,6 +48,9 @@ contract AccountInit is WithStorage {
         // More info here: https://eips.ethereum.org/EIPS/eip-2535#diamond-interface
 
         DataProviderStorage storage ps = LibStorage.dataProviderStorage();
-        ps.baseDataProvider = _dataProvider;
+        ps.dataProvider = _dataProvider;
+
+        UserAccountStorage storage us = LibStorage.userAccountStorage();
+        us.accountOwner = _owner;
     }
 }

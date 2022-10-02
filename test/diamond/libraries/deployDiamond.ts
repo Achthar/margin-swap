@@ -5,8 +5,6 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 import { ethers } from "hardhat"
 import { FacetCutAction, getSelectors } from "./diamond"
 
-// const { getSelectors, FacetCutAction } = require('./libraries/diamond.ts')
-
 export async function deployDiamond(contractOwner:SignerWithAddress) {
 
   // deploy DiamondCutFacet

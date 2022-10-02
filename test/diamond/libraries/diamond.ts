@@ -76,10 +76,3 @@ export function findAddressPositionInFacets(facetAddress: any, facets: any): num
   }
   return -1
 }
-
-// exports.getSelectors = getSelectors
-// exports.getSelector = getSelector
-// exports.FacetCutAction = FacetCutAction
-// exports.remove = remove
-// exports.removeSelectors = removeSelectors
-// exports.findAddressPositionInFacets = findAddressPositionInFacets

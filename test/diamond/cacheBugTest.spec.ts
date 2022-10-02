@@ -2,15 +2,11 @@
 /* eslint-disable prefer-const */
 
 import { ethers } from "hardhat"
-import { DiamondCutFacet, DiamondLoupeFacet, DiamondLoupeFacet__factory, Test1Facet, Test1Facet__factory } from "../../types"
+import { DiamondCutFacet, DiamondLoupeFacet, Test1Facet, Test1Facet__factory } from "../../types"
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { FacetCutAction } from "./libraries/diamond";
 import { deployDiamond } from "./libraries/deployDiamond";
-
-
-// const { FacetCutAction } = require('./libraries/diamond.js')
-
-const { assert } = require('chai')
+import { assert } from "chai";
 
 // The diamond example comes with 8 function selectors
 // [cut, loupe, loupe, loupe, loupe, erc165, transferOwnership, owner]
@@ -38,7 +34,7 @@ describe('Cache bug test', async () => {
   before(async function () {
     let tx
     let receipt
-    let [signer] = await ethers.getSigners()
+    [signer] = await ethers.getSigners()
     let selectors = [
       sel0,
       sel1,

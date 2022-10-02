@@ -1,13 +1,11 @@
 /* global describe it before ethers */
 
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
+import { assert } from "chai"
 import { ethers } from "hardhat"
-import { DiamondCutFacet, DiamondCutFacet__factory, DiamondLoupeFacet, DiamondLoupeFacet__factory, OwnershipFacet, OwnershipFacet__factory } from "../../types"
+import { DiamondCutFacet, DiamondLoupeFacet, OwnershipFacet } from "../../types"
 import { deployDiamond } from "./libraries/deployDiamond"
 import { FacetCutAction, findAddressPositionInFacets, get, getSelectors, remove, removeSelectors } from "./libraries/diamond"
-
-
-const { assert } = require('chai')
 
 describe('DiamondTest', async function () {
   let signer: SignerWithAddress
